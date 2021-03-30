@@ -9,7 +9,8 @@ int main() {
     ServerSocket s(1111);
 
     s.init();
-    s.waitforconnection();
+    while (1)
+        s.waitforconnection();
 
     return 0;
 }

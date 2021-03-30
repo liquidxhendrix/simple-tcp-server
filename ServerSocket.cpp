@@ -46,7 +46,7 @@ int ServerSocket::init(){
         return -1;
     }else
     {
-        cout << "bind successful on port\n" << m_port<<"\n";
+        cout << "bind successful on port" << m_port<<"\n";
     }
 
 
@@ -58,7 +58,7 @@ int ServerSocket::init(){
     }
     else
     {
-        cout << "listening on port\n" << m_port<<"\n";
+        cout << "listening on port" << m_port<<"\n";
     }
 
     return 0;
@@ -91,7 +91,14 @@ int ServerSocket::waitforconnection(){
             //Read from socket
             for ( ; ; )   
             {
-                readline(m_connfd,(void*) buff, sizeof (buff));
+                if (0>=readline(m_connfd,(void*) buff, sizeof (buff)))
+                {
+                    //Error or client terminated. return to main
+                    cout << "Error or client terminated.\n";
+                    close(m_connfd);
+                    m_connfd=0; //Wait for connection again
+                    break;
+                }
 
                 //echo to terminal
 
@@ -154,8 +161,7 @@ ssize_t ServerSocket::readline(int fd, void *vptr,size_t maxlen){
             if (c == '\n')
                 break; //Newline is hit
         }else if (0 == rc){
-            *ptr = 0;
-            return (n-1); //EOF
+            return (0); //Client is closed
         }else
             return (-1);    //Error
     }
