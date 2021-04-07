@@ -27,7 +27,7 @@ int ServerSocket::init(){
 
     if (m_listenfd<0)
     {
-        cout<< "Create Socket Failed. Error:" <<errno <<"\n";
+        cout<< "Create Socket Failed. Error: " <<errno <<"\n";
         return -1;
     }else
     {
@@ -42,72 +42,143 @@ int ServerSocket::init(){
 
     if (bind(m_listenfd, (SA *)&m_servaddr,sizeof(m_servaddr)) <0)
     {
-        cout<< "Bind Socket Failed Errorno:"<<errno <<"\n";
+        cout<< "Bind Socket Failed Errorno: "<<errno <<"\n";
         return -1;
     }else
     {
-        cout << "bind successful on port" << m_port<<"\n";
+        cout << "bind successful on port " << m_port<<"\n";
     }
 
 
     //3. Listen
     if (listen(m_listenfd, 10) <0) //set backlog to 10 for testing
     {
-        cout<< "Listen Socket Failed. Errorno:"<<errno <<"\n";;
+        cout<< "Listen Socket Failed. Errorno: "<<errno <<"\n";;
         return -1;
     }
     else
     {
-        cout << "listening on port" << m_port<<"\n";
+        cout << "listening on port " << m_port<<"\n";
     }
 
     return 0;
 }
 
-int ServerSocket::waitforconnection(){
+void ServerSocket::init_monitoring(){
+    m_maxfd = m_listenfd;
+    m_maxi = -1; //Client array index
+
+    for (m_i =0;m_i < MAX_CLIENTS; m_i++)
+        m_client[m_i] = -1;
+
+    FD_ZERO(&m_allset);
+    FD_SET(m_listenfd,&m_allset); // Add the listening FD into the base fdset
+}
+
+int ServerSocket::add_connfd_to_monitoring(int connfd){
+     
+    
+     for (m_i=0; m_i < MAX_CLIENTS; m_i++)
+        if (m_client[m_i] < 0){
+            m_client[m_i] = connfd;
+            break;
+        }
+            
+    if (m_i == MAX_CLIENTS)
+        m_i=-1;
+    else{
+        FD_SET(connfd,&m_allset);
+
+        if (connfd>m_maxfd)
+            m_maxfd = connfd;
+
+        if (m_i > m_maxi)
+            m_maxi = m_i;
+    }
+
+    return m_i;
+
+}
+
+int ServerSocket::waitforTCPconnection(){
     
     //1. Go to loop and accept
-    // TODO: Convert to SELECT multiplexed I/O
     socklen_t clilen;
-    char buff[MAXLINE];
+    char buff[MAX_LINE];
+
+    //Setup for multiplex
+   
+    init_monitoring(); //init the monitoring client array
 
     for ( ; ; ){
-        clilen = sizeof(m_clientaddr);
 
-        if (m_connfd ==0){
-            //Wait for incoming connection
+        //Multiplex on select call
+        m_rset = m_allset;
+        m_nready = select(m_maxfd + 1, &m_rset , NULL, NULL, NULL);
+        //Block until connection or read/write is activated on FD SET
+
+        if (FD_ISSET(m_listenfd,&m_rset))
+        {
+            //incoming connection
+            clilen = sizeof(m_clientaddr);
+
             m_connfd = accept(m_listenfd, (SA *)&m_clientaddr, &clilen);
-        }
-
-        if (m_connfd <1)
-        {
-            cout<< "Accept incoming connection failed. Errorno:"<<errno <<"\n";
-            return -1;
-        }else
-        {
-            //Accepted
-            cout<< "Connection from IP:"<< inet_ntop(AF_INET,&m_clientaddr.sin_addr.s_addr,buff,sizeof(buff)) <<" Port:"<< ntohs(m_clientaddr.sin_port) <<"\n";
-
-            //Read from socket
-            for ( ; ; )   
+        
+            if (m_connfd<1)
             {
-                if (0>=readline(m_connfd,(void*) buff, sizeof (buff)))
+                cout<< "Accept incoming connection failed. Errorno:"<<errno <<"\n";
+                return -1;
+            }else
+            {
+                //Accepted. Add connection FD to monitoring array and continue listening
+
+                if (0>add_connfd_to_monitoring(m_connfd))
                 {
-                    //Error or client terminated. return to main
-                    cout << "Error or client terminated.\n";
+                    cout << "Connection failed (Max clients connected)\n";
                     close(m_connfd);
                     m_connfd=0; //Wait for connection again
                     break;
                 }
 
-                //echo to terminal
+                cout<< "Connection from IP:"<< inet_ntop(AF_INET,&m_clientaddr.sin_addr.s_addr,buff,sizeof(buff)) <<" Port:"<< ntohs(m_clientaddr.sin_port) <<"\n";
 
-                cout << "Received:"<<buff;
+                if (--m_nready <= 0)
+                    continue; //No more descriptors that are ready
             }
 
+               
+            
         }
 
 
+        //Loop to process client connections
+        for ( m_i=0; m_i<=m_maxi;m_i++)   
+        {
+
+            if ( (m_sockfd = m_client[m_i]) <0)
+                continue; //Empty slot
+
+            if (FD_ISSET(m_sockfd,&m_rset)){//--> Read and output to terminal
+
+                if (0>=readline(m_sockfd,(void*) buff, sizeof (buff)))
+                {
+                    //Error or client terminated. return to main
+                    cout << "Error or client terminated.\n";
+                    FD_CLR(m_sockfd,&m_allset);
+                    close(m_sockfd);
+                    m_client[m_i]=-1;
+                    m_connfd=0; //Wait for connection again
+                }else
+                {
+                    //echo to terminal. Can echo back if necessary
+                    cout << "Received:"<<buff;
+                }
+
+                if (--m_nready <= 0)
+                    break; //No more descriptors that are ready, break out of loop
+
+            } //<<- Read and output to terminal
+        }
     }
 
     //2. Accept & echo data to terminal
@@ -124,7 +195,7 @@ void ServerSocket::printinfo(){
 ssize_t ServerSocket::my_read(int fd, char *ptr){
 
     if (m_read_cnt <= 0){
-        //No data read from socket yet, read in MAXLINE blocks
+        //No data read from socket yet, read in MAX_LINE blocks
         again:
         if ((m_read_cnt = read(fd,m_read_buf,sizeof(m_read_buf))) < 0){
             if (EINTR == errno){
