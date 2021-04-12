@@ -11,6 +11,7 @@ ServerSocket::ServerSocket(int port)
     m_connfd=0;
     m_port=port;
     m_read_cnt=0;
+    m_echomode=ECHO_MODE_STDOUT;
     bzero(&m_servaddr,sizeof(m_servaddr));
     bzero(&m_clientaddr,sizeof(m_clientaddr));
 }
@@ -170,8 +171,24 @@ int ServerSocket::waitforTCPconnection(){
                     m_connfd=0; //Wait for connection again
                 }else
                 {
-                    //echo to terminal. Can echo back if necessary
-                    cout << "Received:"<<buff;
+                    // 2. Accept & echo data depending on mode
+                    // TODO: Draw a shape on screen using openCV
+
+                    switch(m_echomode){
+
+                        case ECHO_MODE_STDOUT:
+                            cout << "Received:"<<buff<<"\n";
+                        break;
+
+                        case ECHO_MODE_SERV:
+                        default:
+                            //send reply
+                            cout << "Echoing back to server in 1 s..."<<buff;
+                            sleep(1);
+                            writen(m_sockfd,(void*) buff, sizeof (buff));
+                            break;
+                    }
+                    
                 }
 
                 if (--m_nready <= 0)
@@ -181,8 +198,7 @@ int ServerSocket::waitforTCPconnection(){
         }
     }
 
-    //2. Accept & echo data to terminal
-    // TODO: Draw a shape on screen using openCV
+    
 
     return 0;
 
@@ -247,4 +263,38 @@ ssize_t ServerSocket::readlinebuf(void **vptrptr){
     }
 
     return m_read_cnt;
+}
+
+ssize_t ServerSocket::writen(int fd, const void *vptr, size_t n){
+   //Write the whole string in a loop
+   
+   size_t nleft;
+   ssize_t nwritten;
+   const char *ptr;
+
+   ptr = (char*) vptr;
+   nleft = n;
+   while (nleft > 0){
+      if (  (nwritten = write(fd,ptr,nleft)) <=0){
+         if (nwritten < 0 && errno == EINTR) //interrupted
+            nwritten = 0; 
+         else
+            return (-1); //error happened
+      }
+
+      nleft -= nwritten;
+      ptr += nwritten;
+   }
+
+   return(n);
+}
+
+void ServerSocket::setEchoModeStdOut()
+{
+    m_echomode = ECHO_MODE_STDOUT;
+}
+
+void ServerSocket::setEchoModeServer()
+{
+    m_echomode = ECHO_MODE_SERV;
 }

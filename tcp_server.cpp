@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
     ServerSocket s(atoi(argv[1]));
 
     s.init();
+    s.setEchoModeServer();
     s.waitforTCPconnection();
 
     return 0;

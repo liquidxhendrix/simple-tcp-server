@@ -4,6 +4,10 @@
 #define MAX_LINE 1024
 #define MAX_CLIENTS 32
 
+//for echo mode
+#define ECHO_MODE_STDOUT 0
+#define ECHO_MODE_SERV 1
+
 #include <sys/socket.h>
 #include <string.h>
 #include <netinet/in.h>
@@ -18,6 +22,8 @@ class ServerSocket{
         int init();
         int waitforTCPconnection();
         void printinfo();
+        void setEchoModeStdOut();
+        void setEchoModeServer();
 
     
     private: 
@@ -31,11 +37,14 @@ class ServerSocket{
         int m_nready,m_client[MAX_CLIENTS];
         char *m_readptr;
         sockaddr_in m_servaddr,m_clientaddr;
+        //For Echo
+        int m_echomode;
         ssize_t my_read(int fd, char *ptr);
         ssize_t readline(int fd, void *vptr,size_t maxlen);
         ssize_t readlinebuf(void **vptrptr);   
         void init_monitoring();  
         int add_connfd_to_monitoring(int connfd);    
+        ssize_t writen(int fd, const void *vptr, size_t n);
 };
 
 #endif
