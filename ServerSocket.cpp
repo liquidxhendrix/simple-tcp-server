@@ -183,9 +183,9 @@ int ServerSocket::waitforTCPconnection(){
                         case ECHO_MODE_SERV:
                         default:
                             //send reply
-                            cout << "Echoing back to server in 1 s..."<<buff;
+                            cout << "Echoing back to server in 1 s...\t:"<<buff;
                             sleep(1);
-                            writen(m_sockfd,(void*) buff, sizeof (buff));
+                            writen(m_sockfd,(void*) buff, strlen(buff));
                             break;
                     }
                     

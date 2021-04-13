@@ -8,8 +8,9 @@
 			"args": [
 				"-g",
 				"${workspaceFolder}/*.cpp",
+				"-lcjson",
 				"-o",
-				"${workspaceFolder}/tcpserver"
+				"${workspaceFolder}/tcp_server"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
