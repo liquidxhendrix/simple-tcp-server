@@ -7,7 +7,11 @@
 			"command": "/usr/bin/g++",
 			"args": [
 				"-g",
+				"${workspaceFolder}/*.c",
 				"${workspaceFolder}/*.cpp",
+				//"-lglut",
+				//"-lGLU",
+				//"-lGL",
 				"-lcjson",
 				"-o",
 				"${workspaceFolder}/tcp_server"

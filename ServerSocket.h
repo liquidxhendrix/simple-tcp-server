@@ -14,6 +14,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <unistd.h>
+#include "shapetype.h"
+#include "json_helper.h"
 
 class ServerSocket{
     public:

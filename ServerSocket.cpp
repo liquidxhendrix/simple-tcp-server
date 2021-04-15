@@ -5,6 +5,8 @@ using namespace std;
 
 #define SA struct sockaddr
 
+
+
 ServerSocket::ServerSocket(int port)
 {
     m_listenfd=0;
@@ -173,19 +175,41 @@ int ServerSocket::waitforTCPconnection(){
                 {
                     // 2. Accept & echo data depending on mode
                     // TODO: Draw a shape on screen using openCV
+                    cout << "\n-------------------------------\n";
+                    cout << "Received:"<<buff<<"\n";
 
                     switch(m_echomode){
 
                         case ECHO_MODE_STDOUT:
-                            cout << "Received:"<<buff<<"\n";
+ 
+
+                    
                         break;
 
                         case ECHO_MODE_SERV:
                         default:
+                            //Convert to shapestype and dump data
+                            ShapeType shapeConverted;
+                            long temp_x;
+
+                            JSON_to_shapes(buff,strlen(buff),&shapeConverted);
+
+                            cout<< "ShapesType Struct:\tcolor:"<<shapeConverted.color<<" x="<<shapeConverted.x<<" y="<<shapeConverted.y<<" shapesize="<<shapeConverted.shapesize<<"\n";
+
+                            cout << "Swapping X,Y and echoing back...\n";
+
+                            temp_x = shapeConverted.x;
+                            shapeConverted.x = shapeConverted.y;
+                            shapeConverted.y = temp_x;
+                            
+                            cout<< "ShapesType Struct:\tcolor:"<<shapeConverted.color<<" x="<<shapeConverted.x<<" y="<<shapeConverted.y<<" shapesize="<<shapeConverted.shapesize<<"\n";
+                            shapes_to_JSON(&shapeConverted,buff,MAX_LINE);
+
                             //send reply
-                            cout << "Echoing back to server in 1 s...\t:"<<buff;
+                            cout << "Echoing back to server in 1 s...\t\n"<<buff<<"\n";
                             sleep(1);
-                            writen(m_sockfd,(void*) buff, strlen(buff));
+                            writen(m_sockfd,(void*) buff, strlen(buff)+1);
+                            cout << "\n-------------------------------\n";
                             break;
                     }
                     
@@ -245,8 +269,8 @@ ssize_t ServerSocket::readline(int fd, void *vptr,size_t maxlen){
         if ((rc = my_read(fd, &c) == 1)){
             //Successfully read 1 char
             *ptr++ = c;
-            if (c == '\n')
-                break; //Newline is hit
+            if (c == '\0')
+                break; //End string is hit
         }else if (0 == rc){
             return (0); //Client is closed
         }else
