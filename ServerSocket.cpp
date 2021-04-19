@@ -206,8 +206,9 @@ int ServerSocket::waitforTCPconnection(){
                             shapes_to_JSON(&shapeConverted,buff,MAX_LINE);
 
                             //send reply
-                            cout << "Echoing back to server in 1 s...\t\n"<<buff<<"\n";
+                            cout << "Echoing back to server in 1 s...\t\n";
                             sleep(1);
+                            cout << "Sending:\n"<<buff<<"\n";
                             writen(m_sockfd,(void*) buff, strlen(buff)+1);
                             cout << "\n-------------------------------\n";
                             break;
