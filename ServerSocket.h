@@ -22,14 +22,14 @@ class ServerSocket{
         ServerSocket(int port);
         ~ServerSocket();
         int init();
-        int waitforTCPconnection();
+        int waitForConnection();
         void printinfo();
         void setEchoModeStdOut();
         void setEchoModeServer();
 
     
     private: 
-        int m_listenfd,m_connfd, m_sockfd;
+        int m_listenfd,m_connfd, m_sockfd, m_udpfd;
         int m_maxfd, m_i, m_maxi;
         int m_port;
         char m_read_buf[MAX_LINE];
@@ -39,6 +39,7 @@ class ServerSocket{
         int m_nready,m_client[MAX_CLIENTS];
         char *m_readptr;
         sockaddr_in m_servaddr,m_clientaddr;
+        socklen_t m_len;
         //For Echo
         int m_echomode;
         ssize_t my_read(int fd, char *ptr);

@@ -26,6 +26,8 @@ ServerSocket::~ServerSocket(){
 int ServerSocket::init(){
     //1. Create Socket
 
+    const int on =1;
+
     m_listenfd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
 
     if (m_listenfd<0)
@@ -39,43 +41,75 @@ int ServerSocket::init(){
 
     //2. Bind
 
+    bzero(&m_servaddr,sizeof(m_servaddr));
     m_servaddr.sin_family = AF_INET;
     m_servaddr.sin_addr.s_addr = htonl(INADDR_ANY); //Listen on all network interfaces
     m_servaddr.sin_port = htons(m_port);
 
+    //Added to allow re-use of port during 4-way closing handshake
+    if (setsockopt(m_listenfd,SOL_SOCKET,SO_REUSEADDR,&on,sizeof(on)) <0)
+    {
+        cout<< "setsockopt Failed but continuing Errorno: "<<errno <<"\n";
+    }
+
+
     if (bind(m_listenfd, (SA *)&m_servaddr,sizeof(m_servaddr)) <0)
     {
-        cout<< "Bind Socket Failed Errorno: "<<errno <<"\n";
+        cout<< "Bind TCP Socket Failed Errorno: "<<errno <<"\n";
         return -1;
     }else
     {
-        cout << "bind successful on port " << m_port<<"\n";
+        cout << "TCP bind successful on port " << m_port<<"\n";
     }
 
 
     //3. Listen
     if (listen(m_listenfd, 10) <0) //set backlog to 10 for testing
     {
-        cout<< "Listen Socket Failed. Errorno: "<<errno <<"\n";;
+        cout<< "Listen TCP Socket Failed. Errorno: "<<errno <<"\n";;
         return -1;
     }
     else
     {
-        cout << "listening on port " << m_port<<"\n";
+        cout << "TCP listening on port " << m_port<<"\n";
     }
+
+    // 4. Init UDP port
+
+    m_udpfd = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
+
+    //Bind
+
+    bzero(&m_servaddr,sizeof(m_servaddr));
+    m_servaddr.sin_family = AF_INET;
+    m_servaddr.sin_addr.s_addr = htonl(INADDR_ANY); //Listen on all network interfaces
+    m_servaddr.sin_port = htons(m_port);
+
+    if (bind(m_udpfd, (SA *)&m_servaddr,sizeof(m_servaddr)) <0)
+    {
+        cout<< "Bind UDP Socket Failed Errorno: "<<errno <<"\n";
+        return -1;
+    }else
+    {
+        cout << "UDP bind successful on port " << m_port<<"\n";
+    }
+
+
+
 
     return 0;
 }
 
 void ServerSocket::init_monitoring(){
-    m_maxfd = m_listenfd;
+    m_maxfd = max(m_listenfd,m_udpfd);
     m_maxi = -1; //Client array index
 
     for (m_i =0;m_i < MAX_CLIENTS; m_i++)
         m_client[m_i] = -1;
 
     FD_ZERO(&m_allset);
-    FD_SET(m_listenfd,&m_allset); // Add the listening FD into the base fdset
+    FD_SET(m_listenfd,&m_allset); // Add the TCPlistening FD into the base fdset
+    FD_SET(m_udpfd,&m_allset); // Add the UDP listening FD into the base fdset
 }
 
 int ServerSocket::add_connfd_to_monitoring(int connfd){
@@ -103,7 +137,7 @@ int ServerSocket::add_connfd_to_monitoring(int connfd){
 
 }
 
-int ServerSocket::waitforTCPconnection(){
+int ServerSocket::waitForConnection(){
     
     //1. Go to loop and accept
     socklen_t clilen;
@@ -153,8 +187,59 @@ int ServerSocket::waitforTCPconnection(){
             
         }
 
+        //Added for UDP server process
+        if (FD_ISSET(m_udpfd,&m_rset))
+        {
+            //data received on UDP port
+            int n=0;
 
-        //Loop to process client connections
+            clilen = sizeof(m_clientaddr);
+
+            n=recvfrom(m_udpfd,(void*) buff, sizeof (buff),0,(SA *)&m_clientaddr,&m_len);
+
+                    cout << "\n-------------------------------\n";
+                    cout << "Received (UDP):"<<buff<<"\n";
+
+                    switch(m_echomode){
+
+                        case ECHO_MODE_STDOUT:
+
+                        break;
+
+                        case ECHO_MODE_SERV:
+                        default:
+                            //Convert to shapestype and dump data
+                            ShapeType shapeConverted;
+                            long temp_x;
+
+                            JSON_to_shapes(buff,strlen(buff),&shapeConverted);
+
+                            cout<< "ShapesType Struct:\tcolor:"<<shapeConverted.color<<" x="<<shapeConverted.x<<" y="<<shapeConverted.y<<" shapesize="<<shapeConverted.shapesize<<"\n";
+
+                            cout << "Swapping X,Y and echoing back...\n";
+
+                            temp_x = shapeConverted.x;
+                            shapeConverted.x = shapeConverted.y;
+                            shapeConverted.y = temp_x;
+                            
+                            cout<< "ShapesType Struct:\tcolor:"<<shapeConverted.color<<" x="<<shapeConverted.x<<" y="<<shapeConverted.y<<" shapesize="<<shapeConverted.shapesize<<"\n";
+                            shapes_to_JSON(&shapeConverted,buff,MAX_LINE);
+
+                            //send reply
+                            cout << "Echoing back to server in 1 s...\t\n";
+                            sleep(1);
+                            cout << "Sending (UDP):\n"<<buff<<"\n";
+                            sendto(m_udpfd,(void*) buff, strlen(buff)+1,0,(SA *)&m_clientaddr,m_len);
+                            cout << "\n-------------------------------\n";
+                            break;
+                     }
+
+                    if (--m_nready <= 0)
+                    continue; //No more descriptors that are ready
+       
+        }
+
+        //Not new connection or UDP packet. Loop to process existing client connections
         for ( m_i=0; m_i<=m_maxi;m_i++)   
         {
 
@@ -176,13 +261,11 @@ int ServerSocket::waitforTCPconnection(){
                     // 2. Accept & echo data depending on mode
                     // TODO: Draw a shape on screen using openCV
                     cout << "\n-------------------------------\n";
-                    cout << "Received:"<<buff<<"\n";
+                    cout << "Received (TCP):"<<buff<<"\n";
 
                     switch(m_echomode){
 
                         case ECHO_MODE_STDOUT:
- 
-
                     
                         break;
 
@@ -208,7 +291,7 @@ int ServerSocket::waitforTCPconnection(){
                             //send reply
                             cout << "Echoing back to server in 1 s...\t\n";
                             sleep(1);
-                            cout << "Sending:\n"<<buff<<"\n";
+                            cout << "Sending (TCP):\n"<<buff<<"\n";
                             writen(m_sockfd,(void*) buff, strlen(buff)+1);
                             cout << "\n-------------------------------\n";
                             break;
