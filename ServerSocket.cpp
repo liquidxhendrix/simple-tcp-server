@@ -142,6 +142,7 @@ int ServerSocket::waitForConnection(){
     //1. Go to loop and accept
     socklen_t clilen;
     char buff[MAX_LINE];
+    char ipbuff[MAX_LINE];
 
     //Setup for multiplex
    
@@ -177,7 +178,7 @@ int ServerSocket::waitForConnection(){
                     break;
                 }
 
-                cout<< "Connection from IP:"<< inet_ntop(AF_INET,&m_clientaddr.sin_addr.s_addr,buff,sizeof(buff)) <<" Port:"<< ntohs(m_clientaddr.sin_port) <<"\n";
+                cout<< "Connection from IP:"<< inet_ntop(AF_INET,&m_clientaddr.sin_addr.s_addr,ipbuff,sizeof(ipbuff)) <<" Port:"<< ntohs(m_clientaddr.sin_port) <<"\n";
 
                 if (--m_nready <= 0)
                     continue; //No more descriptors that are ready
@@ -195,9 +196,11 @@ int ServerSocket::waitForConnection(){
 
             clilen = sizeof(m_clientaddr);
 
-            n=recvfrom(m_udpfd,(void*) buff, sizeof (buff),0,(SA *)&m_clientaddr,&m_len);
+            n=recvfrom(m_udpfd,(void*) buff, sizeof (buff),0,(SA *)&m_clientaddr,&clilen);
 
                     cout << "\n-------------------------------\n";
+                    cout<< "UDP Connection from IP:"<< inet_ntop(AF_INET,&m_clientaddr.sin_addr.s_addr,ipbuff,sizeof(ipbuff)) <<" Port:"<< ntohs(m_clientaddr.sin_port) <<"\n";
+
                     cout << "Received (UDP):"<<buff<<"\n";
 
                     switch(m_echomode){
@@ -229,7 +232,10 @@ int ServerSocket::waitForConnection(){
                             cout << "Echoing back to server in 1 s...\t\n";
                             sleep(1);
                             cout << "Sending (UDP):\n"<<buff<<"\n";
-                            sendto(m_udpfd,(void*) buff, strlen(buff)+1,0,(SA *)&m_clientaddr,m_len);
+                            if (0>sendto(m_udpfd,(void*) buff, strlen(buff)+1,0,(SA *)&m_clientaddr,clilen))
+                            {
+                                cout<< "sendto Failed Errorno: "<<errno <<"\n";
+                            }
                             cout << "\n-------------------------------\n";
                             break;
                      }
